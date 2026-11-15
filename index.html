@@ -1,0 +1,482 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Screen and Audio Recorder</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  :root { --bg:#0f1115; --card:#181b22; --fg:#e8eaf0; --muted:#9aa0ad; --accent:#4f8cff; --red:#ff4f5e; --green:#3ecf8e; --line:#262a33; }
+  * { box-sizing: border-box; }
+  body { margin:0; font-family: system-ui, Segoe UI, Roboto, sans-serif; background:var(--bg); color:var(--fg);
+         display:flex; justify-content:center; padding:36px 16px; }
+  .card { background:var(--card); border-radius:14px; padding:26px; width:100%; max-width:600px; box-shadow:0 10px 30px rgba(0,0,0,.35); }
+  h1 { margin:0 0 6px; font-size:22px; }
+  p.sub { margin:0 0 20px; color:var(--muted); font-size:14px; line-height:1.5; }
+  .box { background:#12151b; border:1px solid var(--line); border-radius:10px; padding:14px; margin-bottom:12px; }
+  .box h3 { margin:0 0 10px; font-size:13px; font-weight:600; color:var(--muted); text-transform:uppercase; letter-spacing:.04em; }
+  .row { display:flex; gap:8px; flex-wrap:wrap; justify-content:center; align-items:center; }
+  .seg { display:flex; background:#0f1115; border:1px solid #2b303b; border-radius:10px; overflow:hidden; }
+  .seg button { background:transparent; border-radius:0; padding:10px 16px; font-weight:600; }
+  .seg button.active { background:var(--accent); }
+  button { border:0; border-radius:10px; padding:12px 18px; font-size:15px; font-weight:600; cursor:pointer; color:#fff; }
+  button:disabled { opacity:.4; cursor:not-allowed; }
+  .start { background:var(--accent); }
+  .stop { background:var(--red); }
+  .dl { background:#2b303b; font-size:14px; padding:10px 14px; }
+  .dl:hover:not(:disabled) { background:#353b48; }
+  button.preset { background:#2b303b; padding:7px 11px; font-size:13px; font-weight:500; border-radius:8px; }
+  button.preset:hover:not(:disabled) { background:#3a4150; }
+  button.preset.active { background:var(--accent); }
+  label { font-size:14px; color:var(--fg); display:flex; align-items:center; gap:8px; }
+  input[type=text], input[type=number], select { background:#0f1115; color:var(--fg); border:1px solid #2b303b; border-radius:8px; padding:7px 9px; font-size:14px; }
+  input[type=text] { width:240px; }
+  input[type=number] { width:62px; text-align:center; }
+  .muted { color:var(--muted); font-size:13px; }
+  .timer { font-size:44px; font-variant-numeric: tabular-nums; text-align:center; margin:14px 0 4px; }
+  .status { text-align:center; color:var(--muted); font-size:14px; min-height:20px; }
+  .status.rec { color:var(--red); }
+  .remaining { text-align:center; color:var(--accent); font-size:14px; margin-top:8px; min-height:18px; font-variant-numeric: tabular-nums; }
+  .meter { height:10px; background:var(--line); border-radius:6px; overflow:hidden; margin:14px 0 18px; }
+  .meter > div { height:100%; width:0%; background:var(--green); transition:width .08s linear; }
+  video, audio { width:100%; margin-top:16px; border-radius:8px; background:#000; }
+  audio { background:transparent; }
+  .downloads { margin-top:14px; }
+  .help { margin-top:22px; font-size:13px; color:var(--muted); line-height:1.6; border-top:1px solid var(--line); padding-top:14px; }
+  .help b { color:var(--fg); }
+  .hide { display:none !important; }
+</style>
+</head>
+<body>
+<div class="card">
+  <h1>Screen and Audio Recorder</h1>
+  <p class="sub">Record the sound only, or the video with sound, from a browser tab, a window, or your screen. Nothing is uploaded; everything stays on your computer.</p>
+
+  <div class="box">
+    <h3>What to record</h3>
+    <div class="row">
+      <div class="seg">
+        <button id="modeAudio" class="active">Audio only</button>
+        <button id="modeVideo">Video + audio</button>
+      </div>
+    </div>
+    <div class="row hide" id="videoOpts" style="margin-top:12px">
+      <label>Quality
+        <select id="quality">
+          <option value="1500000">Small (1.5 Mbps, about 0.7 GB per hour)</option>
+          <option value="3000000" selected>Good (3 Mbps, about 1.3 GB per hour)</option>
+          <option value="6000000">High (6 Mbps, about 2.7 GB per hour)</option>
+        </select>
+      </label>
+      <label>Frame rate
+        <select id="fps">
+          <option value="15">15 fps</option>
+          <option value="30" selected>30 fps</option>
+          <option value="60">60 fps</option>
+        </select>
+      </label>
+    </div>
+  </div>
+
+  <div class="box">
+    <h3>Duration</h3>
+    <div class="row" style="margin-bottom:10px">
+      <label style="cursor:pointer"><input type="checkbox" id="autoStop"> Stop automatically after</label>
+    </div>
+    <div class="row muted" style="margin-bottom:10px">
+      <input type="number" id="durH" min="0" max="12" value="0"> h
+      <input type="number" id="durM" min="0" max="59" value="30"> m
+      <input type="number" id="durS" min="0" max="59" value="0"> s
+    </div>
+    <div class="row">
+      <button class="preset" data-min="5">5 min</button>
+      <button class="preset" data-min="15">15 min</button>
+      <button class="preset" data-min="30">30 min</button>
+      <button class="preset" data-min="60">1 hr</button>
+      <button class="preset" data-min="90">1.5 hr</button>
+      <button class="preset" data-min="120">2 hr</button>
+    </div>
+  </div>
+
+  <div class="box">
+    <h3>Stop when the video ends</h3>
+    <div class="row" style="margin-bottom:8px">
+      <label style="cursor:pointer"><input type="checkbox" id="silenceStop" checked> Stop automatically when there is no sound for</label>
+      <select id="silenceMin">
+        <option value="1">1 min</option>
+        <option value="3">3 min</option>
+        <option value="5">5 min</option>
+        <option value="10" selected>10 min</option>
+        <option value="15">15 min</option>
+        <option value="20">20 min</option>
+      </select>
+    </div>
+    <div class="row" style="margin-bottom:8px">
+      <label style="cursor:pointer"><input type="checkbox" id="trimTail" checked> Cut the silent part off the end of the WAV files</label>
+    </div>
+    <div class="muted" style="text-align:center">The silence timer only starts after sound is first heard, so it will not stop while you are still getting the video ready.</div>
+    <div class="remaining" id="silenceInfo"></div>
+  </div>
+
+  <div class="row" style="margin:6px 0 4px">
+    <label>File name <input type="text" id="fname" placeholder="recording"></label>
+  </div>
+
+  <div class="timer" id="timer">00:00:00</div>
+  <div class="status" id="status">Ready</div>
+  <div class="remaining" id="remaining"></div>
+  <div class="meter"><div id="level"></div></div>
+
+  <div class="row">
+    <button class="start" id="startBtn">Start recording</button>
+    <button class="stop" id="stopBtn" disabled>Stop</button>
+  </div>
+
+  <video id="vplayer" controls class="hide"></video>
+  <audio id="aplayer" controls class="hide"></audio>
+
+  <div class="row downloads">
+    <button class="dl hide" id="dlVideo" disabled>Download video</button>
+    <button class="dl" id="dlWebm" disabled>Audio WebM (small)</button>
+    <button class="dl" id="dlWav" disabled>Audio WAV (full quality)</button>
+    <button class="dl" id="dlWav16" disabled>Audio WAV 16 kHz mono (transcription)</button>
+  </div>
+  <div class="muted hide" id="fallback" style="text-align:center;margin-top:10px"></div>
+  <div class="muted" style="text-align:center;margin-top:8px">Tip: you can also right click the video preview and choose "Save video as..."</div>
+
+  <div class="help">
+    <b>How to use (Chrome or Edge):</b><br>
+    1. Open the video in another tab.<br>
+    2. Pick <b>Audio only</b> or <b>Video + audio</b>, and set a duration if you want it to stop by itself.<br>
+    3. Click <b>Start recording</b>. In the sharing window choose the <b>Chrome Tab</b> with the video and keep <b>"Also share tab audio"</b> switched on.<br>
+    4. Play the video (full screen inside the tab is fine). The green bar shows sound is coming through.<br>
+    5. Click <b>Stop</b> (or "Stop sharing"), then download.<br><br>
+    Video recordings are held in memory until you download them, so for very long sessions use Small or Good quality and download soon after stopping. The video file is MP4 when your browser supports it, otherwise WebM (VLC plays both). Firefox and Safari are not supported.
+  </div>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+let mode = 'audio';
+let stream, audioRec, videoRec, audioChunks = [], videoChunks = [], audioBlob = null, videoBlob = null, videoExt = 'webm';
+let startTime = 0, timerId = null, audioCtx, analyser, rafId, pendingStops = 0;
+/* silence detection */
+const SILENCE_RMS = 0.002;          // about -54 dBFS; below this counts as silence
+let heardSound = false, lastSoundAt = 0, stopReason = '', proc = null;
+let lastSoundOffsetSec = 0;          // seconds from start of recording to the last sound
+
+function fmt(ms) {
+  const s = Math.floor(ms / 1000);
+  return [Math.floor(s/3600), Math.floor(s/60)%60, s%60].map(n => String(n).padStart(2,'0')).join(':');
+}
+function baseName() {
+  const n = $('fname').value.trim();
+  if (n) return n.replace(/[\\/:*?"<>|]/g, '_');
+  return 'recording_' + new Date().toISOString().slice(0,19).replace(/[:T]/g,'_');
+}
+function setStatus(t, rec=false) { $('status').textContent = t; $('status').className = 'status' + (rec ? ' rec' : ''); }
+function isRecording() { return (audioRec && audioRec.state === 'recording') || (videoRec && videoRec.state === 'recording'); }
+
+/* mode switch */
+function setMode(m) {
+  mode = m;
+  $('modeAudio').classList.toggle('active', m === 'audio');
+  $('modeVideo').classList.toggle('active', m === 'video');
+  $('videoOpts').classList.toggle('hide', m !== 'video');
+  $('dlVideo').classList.toggle('hide', m !== 'video');
+}
+$('modeAudio').onclick = () => setMode('audio');
+$('modeVideo').onclick = () => setMode('video');
+
+/* duration */
+function durationMs() {
+  return (((+$('durH').value||0) * 3600) + ((+$('durM').value||0) * 60) + (+$('durS').value||0)) * 1000;
+}
+function updateRemainingHint() {
+  if (isRecording()) return;
+  $('remaining').textContent = $('autoStop').checked && durationMs() > 0 ? 'Will record for ' + fmt(durationMs()) : '';
+}
+document.querySelectorAll('.preset').forEach(b => b.onclick = () => {
+  const min = +b.dataset.min;
+  $('durH').value = Math.floor(min/60); $('durM').value = min % 60; $('durS').value = 0;
+  $('autoStop').checked = true;
+  document.querySelectorAll('.preset').forEach(x => x.classList.toggle('active', x === b));
+  updateRemainingHint();
+});
+['durH','durM','durS'].forEach(id => $(id).oninput = () => {
+  document.querySelectorAll('.preset').forEach(x => x.classList.remove('active'));
+  $('autoStop').checked = true; updateRemainingHint();
+});
+$('autoStop').onchange = updateRemainingHint;
+
+function lockSettings(on) {
+  ['autoStop','durH','durM','durS','quality','fps','modeAudio','modeVideo','silenceMin'].forEach(id => $(id).disabled = on);
+  document.querySelectorAll('.preset').forEach(b => b.disabled = on);
+}
+function setDownloads(enabled) {
+  ['dlVideo','dlWebm','dlWav','dlWav16'].forEach(id => $(id).disabled = !enabled);
+}
+
+function pickVideoMime() {
+  const opts = [
+    ['video/mp4;codecs=avc1,opus', 'mp4'],
+    ['video/mp4;codecs=avc1,mp4a.40.2', 'mp4'],
+    ['video/mp4', 'mp4'],
+    ['video/webm;codecs=vp9,opus', 'webm'],
+    ['video/webm;codecs=vp8,opus', 'webm'],
+    ['video/webm', 'webm']
+  ];
+  for (const [m, ext] of opts) if (MediaRecorder.isTypeSupported(m)) return [m, ext];
+  return ['', 'webm'];
+}
+
+/* start */
+$('startBtn').onclick = async () => {
+  const fps = +$('fps').value;
+  try {
+    stream = await navigator.mediaDevices.getDisplayMedia({
+      video: mode === 'video' ? { frameRate: { ideal: fps, max: fps } } : true,
+      audio: { echoCancellation:false, noiseSuppression:false, autoGainControl:false },
+      systemAudio: 'include',
+      selfBrowserSurface: 'exclude'
+    });
+  } catch (e) {
+    setStatus('Sharing was cancelled or blocked: ' + e.message);
+    return;
+  }
+
+  const audioTracks = stream.getAudioTracks();
+  const videoTracks = stream.getVideoTracks();
+
+  if (!audioTracks.length && mode === 'audio') {
+    stream.getTracks().forEach(t => t.stop());
+    setStatus('No audio was shared. Try again and switch on "Share tab audio".');
+    return;
+  }
+
+  audioChunks = []; videoChunks = []; audioBlob = null; videoBlob = null; pendingStops = 0; stopReason = "";
+
+  /* audio recorder + level meter */
+  if (audioTracks.length) {
+    audioCtx = new AudioContext();
+    const src = audioCtx.createMediaStreamSource(new MediaStream(audioTracks));
+    analyser = audioCtx.createAnalyser(); analyser.fftSize = 1024;
+    src.connect(analyser);
+    const buf = new Uint8Array(analyser.fftSize);
+    const draw = () => {
+      analyser.getByteTimeDomainData(buf);
+      let peak = 0; for (const v of buf) peak = Math.max(peak, Math.abs(v - 128));
+      $('level').style.width = Math.min(100, peak / 128 * 140) + '%';
+      rafId = requestAnimationFrame(draw);
+    };
+    draw();
+
+    // Silence watcher runs on the audio thread, so it keeps working
+    // even when this tab is in the background.
+    heardSound = false; lastSoundAt = 0; lastSoundOffsetSec = 0; stopReason = '';
+    proc = audioCtx.createScriptProcessor(4096, 2, 1);
+    const mute = audioCtx.createGain(); mute.gain.value = 0;
+    src.connect(proc); proc.connect(mute); mute.connect(audioCtx.destination);
+    proc.onaudioprocess = ev => {
+      const ib = ev.inputBuffer;
+      let sum = 0, n = 0;
+      for (let c = 0; c < ib.numberOfChannels; c++) {
+        const d = ib.getChannelData(c);
+        for (let i = 0; i < d.length; i++) { sum += d[i] * d[i]; }
+        n += d.length;
+      }
+      const rms = Math.sqrt(sum / Math.max(1, n));
+      const now = Date.now();
+      if (rms > SILENCE_RMS) {
+        heardSound = true; lastSoundAt = now;
+        lastSoundOffsetSec = (now - startTime) / 1000;
+      }
+      if ($('silenceStop').checked && heardSound && isRecording()) {
+        const limit = (+$('silenceMin').value) * 60000;
+        if (now - lastSoundAt >= limit) { stopReason = 'silence'; stop(); }
+      }
+    };
+    audioCtx.resume();
+
+    const amime = MediaRecorder.isTypeSupported('audio/webm;codecs=opus') ? 'audio/webm;codecs=opus' : 'audio/webm';
+    audioRec = new MediaRecorder(new MediaStream(audioTracks), { mimeType: amime, audioBitsPerSecond: 192000 });
+    audioRec.ondataavailable = e => { if (e.data.size) audioChunks.push(e.data); };
+    audioRec.onstop = onRecorderStopped;
+    pendingStops++;
+  } else {
+    audioRec = null;
+  }
+
+  /* video recorder */
+  if (mode === 'video') {
+    const [vmime, ext] = pickVideoMime();
+    videoExt = ext;
+    const opts = { videoBitsPerSecond: +$('quality').value, audioBitsPerSecond: 160000 };
+    if (vmime) opts.mimeType = vmime;
+    try {
+      videoRec = new MediaRecorder(stream, opts);
+    } catch (e) {
+      videoRec = new MediaRecorder(stream);
+      videoExt = 'webm';
+    }
+    videoRec.ondataavailable = e => { if (e.data.size) videoChunks.push(e.data); };
+    videoRec.onstop = onRecorderStopped;
+    pendingStops++;
+  } else {
+    videoRec = null;
+  }
+
+  if (audioRec) audioRec.start(1000);
+  if (videoRec) videoRec.start(1000);
+
+  stream.getTracks().forEach(t => t.addEventListener('ended', stop));
+
+  startTime = Date.now();
+  const limit = $('autoStop').checked ? durationMs() : 0;
+  timerId = setInterval(() => {
+    const el = Date.now() - startTime;
+    $('timer').textContent = fmt(el);
+    if (limit) {
+      $('remaining').textContent = 'Stops automatically in ' + fmt(Math.max(0, limit - el));
+      if (el >= limit) { stopReason = 'timer'; stop(); }
+    }
+    if ($('silenceStop').checked && audioTracks.length) {
+      if (!heardSound) $('silenceInfo').textContent = 'Waiting for sound...';
+      else {
+        const quiet = Date.now() - lastSoundAt;
+        $('silenceInfo').textContent = quiet < 3000 ? 'Sound detected'
+          : 'Silent for ' + fmt(quiet) + ' (stops at ' + fmt(+$('silenceMin').value * 60000) + ')';
+      }
+    } else $('silenceInfo').textContent = '';
+  }, 250);
+
+  let msg = '● Recording ' + (mode === 'video' ? 'video + audio' : 'audio');
+  if (mode === 'video' && !audioTracks.length) msg = '● Recording video (no audio was shared)';
+  setStatus(msg, true);
+  lockSettings(true);
+  $('startBtn').disabled = true; $('stopBtn').disabled = false;
+  setDownloads(false);
+  $('vplayer').classList.add('hide'); $('aplayer').classList.add('hide');
+  $('fallback').classList.add('hide');
+};
+
+function stop() {
+  if (audioRec && audioRec.state !== 'inactive') audioRec.stop();
+  if (videoRec && videoRec.state !== 'inactive') videoRec.stop();
+  if (stream) stream.getTracks().forEach(t => t.stop());
+}
+$('stopBtn').onclick = stop;
+
+function onRecorderStopped() {
+  pendingStops--;
+  if (pendingStops > 0) return;
+  clearInterval(timerId); cancelAnimationFrame(rafId);
+  $('level').style.width = '0%';
+  if (proc) { proc.onaudioprocess = null; proc = null; }
+  if (audioCtx) { audioCtx.close(); audioCtx = null; }
+  $('silenceInfo').textContent = '';
+
+  const dur = fmt(Date.now() - startTime);
+  let sizeMB = 0;
+  if (audioChunks.length) { audioBlob = new Blob(audioChunks, { type: 'audio/webm' }); sizeMB += audioBlob.size; }
+  if (videoChunks.length) {
+    videoBlob = new Blob(videoChunks, { type: videoRec.mimeType || 'video/webm' });
+    sizeMB += videoBlob.size;
+    $('vplayer').src = URL.createObjectURL(videoBlob); $('vplayer').classList.remove('hide');
+  } else if (audioBlob) {
+    $('aplayer').src = URL.createObjectURL(audioBlob); $('aplayer').classList.remove('hide');
+  }
+
+  const why = stopReason === 'silence' ? ' Stopped because no sound was heard for ' + $('silenceMin').value + ' min.'
+            : stopReason === 'timer' ? ' Stopped by the timer.' : '';
+  setStatus('Done. ' + dur + ' recorded, ' + (sizeMB/1048576).toFixed(1) + ' MB.' + why);
+  lockSettings(false); updateRemainingHint();
+  $('startBtn').disabled = false; $('stopBtn').disabled = true;
+  $('dlVideo').disabled = !videoBlob;
+  ['dlWebm','dlWav','dlWav16'].forEach(id => $(id).disabled = !audioBlob);
+}
+
+/* downloads */
+async function save(b, name) {
+  if (!b || !b.size) { setStatus('Nothing to save: the recording is empty. Try recording again.'); return; }
+  // 1) Chrome/Edge "Save as" dialog, writes straight to disk (most reliable for big files)
+  if (window.showSaveFilePicker) {
+    try {
+      const ext = name.split('.').pop();
+      const handle = await window.showSaveFilePicker({
+        suggestedName: name,
+        types: [{ description: ext.toUpperCase() + ' file', accept: { [b.type.split(';')[0] || 'application/octet-stream']: ['.' + ext] } }]
+      });
+      setStatus('Saving ' + name + ' ...');
+      const w = await handle.createWritable();
+      await w.write(b); await w.close();
+      setStatus('Saved ' + name + ' (' + (b.size/1048576).toFixed(1) + ' MB)');
+      return;
+    } catch (e) {
+      if (e.name === 'AbortError') { setStatus('Save cancelled'); return; }
+      // otherwise fall through to the normal download
+    }
+  }
+  // 2) Normal browser download
+  const url = URL.createObjectURL(b);
+  const a = document.createElement('a');
+  a.href = url; a.download = name;
+  document.body.appendChild(a); a.click(); a.remove();
+  showFallbackLink(url, name);
+  setStatus('Download started. If nothing appeared, use the link below the buttons.');
+}
+function showFallbackLink(url, name) {
+  const box = $('fallback');
+  box.innerHTML = 'If the download did not start: <a href="' + url + '" download="' + name + '" style="color:#4f8cff">right click here and choose "Save link as..."</a>';
+  box.classList.remove('hide');
+}
+$('dlVideo').onclick = () => save(videoBlob, baseName() + '.' + videoExt);
+$('dlWebm').onclick = () => save(audioBlob, baseName() + '.webm');
+
+async function toWav(targetRate, mono) {
+  setStatus('Converting to WAV, please wait...');
+  const ctx = new AudioContext();
+  const decoded = await ctx.decodeAudioData(await audioBlob.arrayBuffer());
+  ctx.close();
+  const rate = targetRate || decoded.sampleRate;
+  const channels = mono ? 1 : decoded.numberOfChannels;
+  let seconds = decoded.duration;
+  if ($('trimTail').checked && stopReason === 'silence' && lastSoundOffsetSec > 0) {
+    seconds = Math.min(seconds, lastSoundOffsetSec + 3);   // keep 3 s after the last sound
+  }
+  const off = new OfflineAudioContext(channels, Math.ceil(seconds * rate), rate);
+  const s = off.createBufferSource(); s.buffer = decoded; s.connect(off.destination); s.start();
+  return encodeWav(await off.startRendering());
+}
+function encodeWav(ab) {
+  const ch = ab.numberOfChannels, rate = ab.sampleRate, n = ab.length;
+  const buffer = new ArrayBuffer(44 + n * ch * 2);
+  const v = new DataView(buffer);
+  const w = (o, s) => { for (let i=0;i<s.length;i++) v.setUint8(o+i, s.charCodeAt(i)); };
+  w(0,'RIFF'); v.setUint32(4, 36 + n*ch*2, true); w(8,'WAVE'); w(12,'fmt ');
+  v.setUint32(16,16,true); v.setUint16(20,1,true); v.setUint16(22,ch,true);
+  v.setUint32(24,rate,true); v.setUint32(28,rate*ch*2,true); v.setUint16(32,ch*2,true); v.setUint16(34,16,true);
+  w(36,'data'); v.setUint32(40, n*ch*2, true);
+  const data = []; for (let c=0;c<ch;c++) data.push(ab.getChannelData(c));
+  let o = 44;
+  for (let i=0;i<n;i++) for (let c=0;c<ch;c++) {
+    const x = Math.max(-1, Math.min(1, data[c][i]));
+    v.setInt16(o, x < 0 ? x * 0x8000 : x * 0x7FFF, true); o += 2;
+  }
+  return new Blob([buffer], { type: 'audio/wav' });
+}
+$('dlWav').onclick = async () => {
+  try { save(await toWav(null, false), baseName() + '.wav'); setStatus('WAV saved'); }
+  catch (e) { setStatus('WAV conversion failed: ' + e.message + '. Use the WebM download instead.'); }
+};
+$('dlWav16').onclick = async () => {
+  try { save(await toWav(16000, true), baseName() + '_16k_mono.wav'); setStatus('WAV saved'); }
+  catch (e) { setStatus('WAV conversion failed: ' + e.message + '. Use the WebM download instead.'); }
+};
+
+if (!navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia || !window.MediaRecorder) {
+  $('startBtn').disabled = true;
+  setStatus('This browser cannot record. Please open this file in Chrome or Edge.');
+}
+</script>
+</body>
+</html>
